@@ -1,0 +1,108 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>H.264 Video Recording</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px 0;
+            font-size: 16px;
+        }
+        #preview, #recordedVideo {
+            max-width: 100%;
+            margin-bottom: 10px;
+        }
+        #downloadLink {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>H.264 Video Recording</h1>
+    <video id="preview" width="640" height="480" autoplay muted></video>
+    <br>
+    <button id="startRecord">Start Recording</button>
+    <button id="stopRecord" disabled>Stop Recording</button>
+    <br>
+    <video id="recordedVideo" controls style="display:none;"></video>
+    <br>
+    <a id="downloadLink" style="display:none;">Download Video</a>
+    <script>
+        let preview = document.getElementById("preview");
+        let startButton = document.getElementById("startRecord");
+        let stopButton = document.getElementById("stopRecord");
+        let recordedVideo = document.getElementById("recordedVideo");
+        let downloadLink = document.getElementById("downloadLink");
+        let recorder;
+        let recordedChunks = [];
+
+        async function startRecording() {
+            try {
+                let stream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
+                preview.srcObject = stream;
+                
+                // 尝试使用 H.264 编码
+                let options = {mimeType: 'video/webm; codecs=h264'};
+                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                    console.warn(`${options.mimeType} is not supported, falling back to vp8`);
+                    options = {mimeType: 'video/webm; codecs=vp8'};
+                    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                        console.warn(`${options.mimeType} is not supported, falling back to default`);
+                        options = {mimeType: 'video/webm'};
+                    }
+                }
+                
+                recorder = new MediaRecorder(stream, options);
+                recorder.ondataavailable = handleDataAvailable;
+                recorder.onstop = handleStop;
+                recorder.start();
+                startButton.disabled = true;
+                stopButton.disabled = false;
+            } catch (e) {
+                console.error('Error during recording setup:', e);
+                alert('Failed to start recording. Please check your camera and microphone permissions.');
+            }
+        }
+
+        function stopRecording() {
+            recorder.stop();
+            preview.srcObject.getTracks().forEach(track => track.stop());
+            startButton.disabled = false;
+            stopButton.disabled = true;
+        }
+
+        function handleDataAvailable(event) {
+            if (event.data.size > 0) {
+                recordedChunks.push(event.data);
+            }
+        }
+
+        function handleStop() {
+            const blob = new Blob(recordedChunks, {type: 'video/webm'});
+            recordedVideo.src = URL.createObjectURL(blob);
+            recordedVideo.style.display = 'block';
+            downloadLink.href = recordedVideo.src;
+            downloadLink.download = 'RecordedVideo.webm';
+            downloadLink.style.display = 'block';
+            recordedChunks = []; // Clear the chunks for next recording
+        }
+
+        startButton.onclick = startRecording;
+        stopButton.onclick = stopRecording;
+    </script>
+</body>
+</html>
